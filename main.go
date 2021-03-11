@@ -35,22 +35,30 @@ func fetchRepositories(username string) ([]*github.Repository, error) {
 	return repositories, err
 }
 
-func main() {
-	var username string
-	fmt.Print("Enter GitHub username: ")
-	fmt.Scanf("%s", &username)
+type UserStats struct {
+	forkCount                  int
+	repositoriesCount          int
+	averageCommitsCountPerRepo int
+	uniqueLanguages            []string
+}
 
+func fetchUserStats(username string) (*UserStats, error) {
 	repositories, err := fetchRepositories(username)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+		return nil, err
 	}
+	repositoriesCount := len(repositories)
 
 	uniqueLanguages := make([]string, 20)
 	commitsCount := 0
 	forkCount := 0
 
 	for _, repository := range repositories {
+		if *repository.Fork {
+			forkCount += 1
+			continue
+		}
+
 		languages, err := fetchLanguages(username, *repository.Name)
 		if err != nil {
 			continue
@@ -62,27 +70,44 @@ func main() {
 			}
 		}
 
-		if *repository.Fork {
-			forkCount += 1
-		} else {
-			commits, err := fetchCommits(username, *repository.Name)
-			if err != nil {
-				continue
-			}
-			commitsCount += len(commits)
+		commits, err := fetchCommits(username, *repository.Name)
+		if err != nil {
+			continue
 		}
+		commitsCount += len(commits)
 	}
 
-	averageCommitsCountPerRepo := commitsCount / (len(repositories) - forkCount)
+	averageCommitsCountPerRepo := commitsCount / (repositoriesCount - forkCount)
 
-	fmt.Printf("Number of repositories: %v \n", len(repositories))
-	fmt.Printf("Number of forks: %v \n", forkCount)
+	userStats := UserStats{
+		averageCommitsCountPerRepo: averageCommitsCountPerRepo,
+		repositoriesCount:          repositoriesCount,
+		forkCount:                  forkCount,
+		uniqueLanguages:            uniqueLanguages,
+	}
+
+	return &userStats, nil
+}
+
+func main() {
+	var username string
+	fmt.Print("Enter GitHub username: ")
+	fmt.Scanf("%s", &username)
+
+	userStats, err := fetchUserStats(username)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Number of repositories: %v \n", userStats.repositoriesCount)
+	fmt.Printf("Number of forks: %v \n", userStats.forkCount)
 	fmt.Print("Languages: ")
-	for _, language := range uniqueLanguages {
+	for _, language := range userStats.uniqueLanguages {
 		if language != "" {
 			fmt.Printf("%v ", language)
 		}
 	}
 	fmt.Println()
-	fmt.Printf("Average number of commits in repository: %v \n", averageCommitsCountPerRepo)
+	fmt.Printf("Average number of commits in repository: %v \n", userStats.averageCommitsCountPerRepo)
 }
