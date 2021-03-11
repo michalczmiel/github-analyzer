@@ -17,6 +17,12 @@ func contains(s []string, str string) bool {
 	return false
 }
 
+func fetchLanguages(username string, repository string) (map[string]int, error) {
+	client := github.NewClient(nil)
+	languages, _, err := client.Repositories.ListLanguages(context.Background(), username, repository)
+	return languages, err
+}
+
 func fetchCommits(username string, repository string) ([]*github.RepositoryCommit, error) {
 	client := github.NewClient(nil)
 	commits, _, err := client.Repositories.ListCommits(context.Background(), username, repository, nil)
@@ -40,15 +46,20 @@ func main() {
 		return
 	}
 
-	languages := make([]string, len(repositories))
+	uniqueLanguages := make([]string, 20)
 	commitsCount := 0
 	forkCount := 0
 
 	for _, repository := range repositories {
-		language := *repository.Language
+		languages, err := fetchLanguages(username, *repository.Name)
+		if err != nil {
+			continue
+		}
 
-		if !contains(languages, language) {
-			languages = append(languages, language)
+		for language, _ := range languages {
+			if !contains(uniqueLanguages, language) {
+				uniqueLanguages = append(uniqueLanguages, language)
+			}
 		}
 
 		if *repository.Fork {
@@ -56,8 +67,7 @@ func main() {
 		} else {
 			commits, err := fetchCommits(username, *repository.Name)
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				return
+				continue
 			}
 			commitsCount += len(commits)
 		}
@@ -68,8 +78,10 @@ func main() {
 	fmt.Printf("Number of repositories: %v \n", len(repositories))
 	fmt.Printf("Number of forks: %v \n", forkCount)
 	fmt.Print("Languages: ")
-	for _, language := range languages {
-		fmt.Printf("%v ", language)
+	for _, language := range uniqueLanguages {
+		if language != "" {
+			fmt.Printf("%v ", language)
+		}
 	}
 	fmt.Println()
 	fmt.Printf("Average number of commits in repository: %v \n", averageCommitsCountPerRepo)
