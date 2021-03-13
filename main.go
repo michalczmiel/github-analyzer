@@ -31,7 +31,11 @@ func fetchCommits(username string, repository string) ([]*github.RepositoryCommi
 
 func fetchRepositories(username string) ([]*github.Repository, error) {
 	client := github.NewClient(nil)
-	repositories, _, err := client.Repositories.List(context.Background(), username, nil)
+	options := &github.RepositoryListOptions{
+		Sort:      "pushed",
+		Direction: "desc",
+	}
+	repositories, _, err := client.Repositories.List(context.Background(), username, options)
 	return repositories, err
 }
 
@@ -43,6 +47,8 @@ type UserStats struct {
 }
 
 func fetchUserStats(username string) (*UserStats, error) {
+	const RepositoryCountToAnalyze = 6
+
 	repositories, err := fetchRepositories(username)
 	if err != nil {
 		return nil, err
@@ -53,10 +59,14 @@ func fetchUserStats(username string) (*UserStats, error) {
 	commitsCount := 0
 	forkCount := 0
 
-	for _, repository := range repositories {
+	for index, repository := range repositories {
 		if *repository.Fork {
 			forkCount += 1
 			continue
+		}
+
+		if index+1 > RepositoryCountToAnalyze {
+			break
 		}
 
 		languages, err := fetchLanguages(username, *repository.Name)
