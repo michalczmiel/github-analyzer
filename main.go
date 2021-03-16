@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/go-github/v33/github"
 )
 
@@ -47,13 +49,12 @@ func fetchUser(username string) (*github.User, error) {
 }
 
 type UserStats struct {
-	forkCount                  int
-	repositoriesCount          int
-	averageCommitsCountPerRepo int
-	uniqueLanguages            []string
-	joinedAt                   time.Time
-	portfolioUrl               string
-	accountAgeInYears          int
+	ForkCount                  int
+	RepositoriesCount          int
+	AverageCommitsCountPerRepo int
+	UniqueLanguages            []string
+	PortfolioUrl               string
+	AccountAgeInYears          int
 }
 
 func fetchUserStats(username string) (*UserStats, error) {
@@ -70,7 +71,7 @@ func fetchUserStats(username string) (*UserStats, error) {
 	}
 	repositoriesCount := len(repositories)
 
-	uniqueLanguages := make([]string, 20)
+	var uniqueLanguages []string
 	commitsCount := 0
 	forkCount := 0
 
@@ -107,37 +108,62 @@ func fetchUserStats(username string) (*UserStats, error) {
 	accountAgeInYears := (time.Now().Year() - user.CreatedAt.Year())
 
 	userStats := UserStats{
-		averageCommitsCountPerRepo: averageCommitsCountPerRepo,
-		repositoriesCount:          repositoriesCount,
-		forkCount:                  forkCount,
-		uniqueLanguages:            uniqueLanguages,
-		portfolioUrl:               *user.Blog,
-		accountAgeInYears:          accountAgeInYears,
+		AverageCommitsCountPerRepo: averageCommitsCountPerRepo,
+		RepositoriesCount:          repositoriesCount,
+		ForkCount:                  forkCount,
+		UniqueLanguages:            uniqueLanguages,
+		PortfolioUrl:               *user.Blog,
+		AccountAgeInYears:          accountAgeInYears,
 	}
 
 	return &userStats, nil
 }
 
-func main() {
-	var username string
-	fmt.Print("Enter GitHub username: ")
-	fmt.Scanf("%s", &username)
+type BodyRequest struct {
+	Username string `json:"username"`
+}
 
-	userStats, err := fetchUserStats(username)
+type BodyResponse struct {
+	PortfolioUrl               string   `json:"portfolio_url"`
+	ForkCount                  int      `json:"fork_count"`
+	RepositoriesCount          int      `json:"repositories_count"`
+	AverageCommitsCountPerRepo int      `json:"average_commits_count_per_repo"`
+	UniqueLanguages            []string `json:"unique_languages"`
+	AccountAgeInYears          int      `json:"account_age_in_years"`
+}
+
+func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	bodyRequest := BodyRequest{
+		Username: "",
+	}
+
+	err := json.Unmarshal([]byte(request.Body), &bodyRequest)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 404}, nil
 	}
-	fmt.Printf("Portfolio url: %v \n", userStats.portfolioUrl)
-	fmt.Printf("Account age in years: %v \n", userStats.accountAgeInYears)
-	fmt.Printf("Number of repositories: %v \n", userStats.repositoriesCount)
-	fmt.Printf("Number of forks: %v \n", userStats.forkCount)
-	fmt.Print("Languages: ")
-	for _, language := range userStats.uniqueLanguages {
-		if language != "" {
-			fmt.Printf("%v ", language)
-		}
+
+	userStats, err := fetchUserStats(bodyRequest.Username)
+	if err != nil {
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 404}, nil
 	}
-	fmt.Println()
-	fmt.Printf("Average number of commits in repository: %v \n", userStats.averageCommitsCountPerRepo)
+
+	bodyResponse := BodyResponse{
+		PortfolioUrl:               userStats.PortfolioUrl,
+		ForkCount:                  userStats.ForkCount,
+		RepositoriesCount:          userStats.RepositoriesCount,
+		AverageCommitsCountPerRepo: userStats.AverageCommitsCountPerRepo,
+		UniqueLanguages:            userStats.UniqueLanguages,
+		AccountAgeInYears:          userStats.AccountAgeInYears,
+	}
+
+	response, err := json.Marshal(&bodyResponse)
+	if err != nil {
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 404}, nil
+	}
+
+	return events.APIGatewayProxyResponse{Body: string(response), StatusCode: 200}, nil
+}
+
+func main() {
+	lambda.Start(Handler)
 }

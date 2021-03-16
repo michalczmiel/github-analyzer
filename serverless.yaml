@@ -1,0 +1,37 @@
+service: github-analyzer
+
+provider:
+  name: aws
+  runtime: go1.x
+  stage: ${self:opt.stage, 'dev'}
+  region: ${self:opt.region, 'eu-central-1'}
+  tracing:
+    apiGateway: true
+    lambda: true
+
+functions:
+  analyze:
+    handler: bin/main
+    package:
+      include:
+        - ./bin/min
+    events:
+      - http:
+          path: analyze
+          method: post
+          cors: true
+
+package:
+  exclude:
+    - node_modules/**
+    - package.json
+    - yarn.lock
+    - Makefile
+    - README.md
+    - LICENSE
+    - serverless.yaml
+    - .gitignore
+    - .editorconfig
+    - '**/*.go'
+    - go.mod
+    - go.sum

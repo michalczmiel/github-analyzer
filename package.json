@@ -1,0 +1,22 @@
+{
+  "name": "github-analyzer",
+  "version": "1.0.0",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michalczmiel/github-analyzer.git"
+  },
+  "author": "Michał Czmiel (michalczmiel@outlook.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/michalczmiel/github-analyzer/issues"
+  },
+  "homepage": "https://github.com/michalczmiel/github-analyzer#readme",
+  "scripts": {
+    "deploy": "sls deploy",
+    "remove": "sls remove"
+  },
+  "dependencies": {
+    "serverless": "^2.30.2"
+  }
+}
